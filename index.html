@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#840811">
+<meta name="theme-color" content="#000000">
 <title>SPD-TimeCardApp</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -11,7 +11,7 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 :root{
-  --accent:#840811; --accent-dim:#fdeced;
+  --accent:#000000; --accent-dim:#e5e7eb;
   --ink:#111827; --ink-mid:#374151; --ink-light:#6b7280;
   --rule:#e5e7eb; --surface:#f7f7f5; --white:#fff;
   --green:#166534; --green-dim:#dcfce7; --green-border:#86efac;
@@ -41,7 +41,7 @@ select,input[type=text],input[type=date]{font:inherit;padding:7px 9px;border:1px
 select:focus,input:focus{outline:2px solid var(--accent-dim);border-color:var(--accent)}
 .btn{font:inherit;font-weight:600;font-size:14px;padding:7px 14px;border-radius:var(--radius);border:1px solid #d1d5db;background:#fff;color:var(--ink);cursor:pointer}
 .btn:hover{background:#f3f4f6} .btn:disabled{opacity:.5;cursor:default}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff} .btn.primary:hover{background:#6a060e}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff} .btn.primary:hover{background:#333333}
 .btn.small{padding:3px 10px;font-size:13px}
 .btn.danger{color:#991b1b}
 #periodbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
@@ -52,7 +52,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-
 td{padding:5px 8px;border-bottom:1px solid var(--rule);vertical-align:middle}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 #capTable input.t{width:78px;text-align:center} #capTable input.g{width:110px;text-align:right}
-#capTable tr.sun td{background:#fff7ed} #capTable tr.ph td{background:#fef2f2} #capTable tr.sat td{background:#fafafa}
+#capTable tr.sun td{background:#fff7ed} #capTable tr.ph td{background:#eeeeee} #capTable tr.sat td{background:#fafafa}
 input.bad{border-color:#dc2626;background:var(--red-dim)}
 .badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
 .badge.ph{background:var(--accent);color:#fff} .badge.x2{background:#ea580c;color:#fff}
@@ -60,7 +60,7 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
 .stat{flex:1;min-width:130px;border:1px solid var(--rule);border-radius:var(--radius);padding:8px 12px;background:#fafafa}
 .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-light);font-weight:600}
 .stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
-.stat.hi{background:var(--accent-dim);border-color:#f0b4b8}
+.stat.hi{background:#f3f4f6;border-color:#9ca3af}
 .note{font-size:13px;margin-top:10px;padding:8px 12px;border-radius:var(--radius);background:var(--amber-dim);border:1px solid var(--amber-border);color:var(--amber)}
 .note.ok{background:var(--green-dim);border-color:var(--green-border);color:var(--green)}
 .note.err{background:var(--red-dim);border-color:var(--red-border);color:#991b1b}
@@ -73,7 +73,8 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
 #signin{text-align:center;padding:50px 20px}
 #signin h1{font-size:22px;margin-bottom:8px} #signin p{color:var(--ink-light);margin-bottom:18px}
 .hidden{display:none!important}
-#dirtyTag{font-size:13px;font-weight:600;color:var(--amber)}
+.dirtytag,#dirtyTag{font-size:13px;font-weight:600;color:var(--amber)}
+#gTable input.g{width:170px;text-align:right}
 @media(max-width:700px){#periodLabel{min-width:0;flex:1 0 100%;order:-1}.stat .v{font-size:18px}}
 </style>
 </head>
@@ -84,6 +85,7 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
 </div>
 <div id="tabs" class="hidden">
   <div class="tab active" data-tab="capture">Capture</div>
+  <div class="tab" data-tab="glass">Glass</div>
   <div class="tab" data-tab="summary">Summary for SimplePay</div>
   <div class="tab" data-tab="employees">Employees</div>
   <div class="tab" data-tab="settings">Settings</div>
@@ -119,12 +121,36 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
       </div>
       <div class="tablewrap">
         <table id="capTable">
-          <thead><tr><th>Day</th><th>Type</th><th>Start</th><th>End</th><th class="num">Lunch</th><th class="num">Hours</th><th class="num">Glass</th></tr></thead>
+          <thead><tr><th>Day</th><th>Type</th><th>Start</th><th>End</th><th class="num">Lunch</th><th class="num">Hours</th></tr></thead>
           <tbody id="capBody"></tbody>
         </table>
       </div>
       <div class="strip" id="capStrip"></div>
       <div id="capNotes"></div>
+    </div>
+  </section>
+
+  <!-- GLASS -->
+  <section id="view-glass" class="hidden">
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        <label class="l" for="gEmpSel">Employee</label>
+        <select id="gEmpSel"></select>
+        <button class="btn small" id="gPrev">◀ Previous</button>
+        <button class="btn small" id="gNext">Next ▶</button>
+        <span class="spacer"></span>
+        <span id="gDirty" class="dirtytag"></span>
+        <button class="btn primary" id="gSave">Save</button>
+      </div>
+      <div class="sub">Type the glass quantity for each day. If there are several slips on a day, add them up with a plus, for example 12.86+9.2.</div>
+      <div class="tablewrap">
+        <table id="gTable">
+          <thead><tr><th>Day</th><th>Glass quantity</th><th class="num">Day total</th></tr></thead>
+          <tbody id="gBody"></tbody>
+        </table>
+      </div>
+      <div class="strip" id="gStrip"></div>
+      <div id="gNotes"></div>
     </div>
   </section>
 
@@ -388,7 +414,7 @@ function todayISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMo
 function latestFinishedPeriodEnd(){let e=Engine.periodEndFor(todayISO());if(e>=todayISO())e=Engine.addDays(e,-14);return e;}
 
 const S={account:null,siteId:null,employees:[],holidays:[],holSet:new Set(),periodEnd:latestFinishedPeriodEnd(),days:[],
-  pd:null,tab:'capture',selEmp:null,draft:{},snapshot:'',busy:false};
+  pd:null,tab:'capture',selEmp:null,draft:{},snapshot:'',dirty:false,gEmp:null,gdraft:{},gsnap:'',gdirty:false,busy:false};
 let msalApp=null;
 
 /* ---------- messages ---------- */
@@ -409,7 +435,7 @@ async function initAuth(){
 }
 function showSignedOut(){
   $('signin').classList.remove('hidden');$('tabs').classList.add('hidden');$('periodbar').classList.add('hidden');
-  ['capture','summary','employees','settings'].forEach(v=>$('view-'+v).classList.add('hidden'));
+  ['capture','glass','summary','employees','settings'].forEach(v=>$('view-'+v).classList.add('hidden'));
   $('authPill').className='auth-pill';$('authPill').textContent='⚪ Sign in';$('authPill').onclick=signIn;
 }
 async function signIn(){try{await msalApp.loginRedirect({scopes:SCOPES});}catch(e){banner('Sign-in failed: '+e.message);}}
@@ -468,6 +494,7 @@ async function startApp(){
     await loadBase();
     await loadPeriod();
     if(!S.selEmp||!activeEmps().includes(S.selEmp)) S.selEmp=(activeEmps()[0]||null);
+    if(!S.gEmp||!activeEmps().includes(S.gEmp)) S.gEmp=S.selEmp;
     setStatus('');
     showTab(S.tab);
   }catch(e){
@@ -501,89 +528,91 @@ async function loadPeriod(){
 /* ---------- period bar ---------- */
 function renderPeriod(){$('periodLabel').textContent=dLong(S.days[0])+' – '+dLong(S.days[13]);}
 async function changePeriod(newEnd){
-  if(S.dirty&&!confirm('You have unsaved changes for '+S.selEmp+'. Leave without saving?'))return;
+  if(!confirmLeave())return;
   S.periodEnd=newEnd;setStatus('Loading…');
-  try{await loadPeriod();buildDraft();setStatus('');showTab(S.tab);}catch(e){setStatus('');toast('Could not load: '+e.message,'err',6000);}
+  try{await loadPeriod();setStatus('');showTab(S.tab,true);}catch(e){setStatus('');toast('Could not load: '+e.message,'err',6000);}
 }
 
 /* ---------- tabs ---------- */
-function showTab(t){
-  if(t!==S.tab&&S.dirty&&!confirm('You have unsaved changes for '+S.selEmp+'. Leave without saving?'))return;
+function showTab(t,force){
+  if(!force&&t!==S.tab&&!confirmLeave())return;
   S.tab=t;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
-  ['capture','summary','employees','settings'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==t));
-  $('periodbar').classList.toggle('hidden',!(t==='capture'||t==='summary'));
+  ['capture','glass','summary','employees','settings'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==t));
+  $('periodbar').classList.toggle('hidden',!(t==='capture'||t==='glass'||t==='summary'));
   if(S.days.length)renderPeriod();
   if(t==='capture')renderCapture();
+  if(t==='glass')renderGlass();
   if(t==='summary')renderSummary();
   if(t==='employees')renderEmployees();
   if(t==='settings')renderHolidays();
 }
 
-/* ---------- CAPTURE ---------- */
+/* ---------- shared ---------- */
+const isDirty=()=>S.dirty||S.gdirty;
+const confirmLeave=()=>!isDirty()||confirm('You have unsaved changes. Leave without saving?');
+const isNormalWeekday=d=>{const w=Engine.weekday(d);return w>=1&&w<=5&&!S.holSet.has(d);};
+function dayBadge(d){const wd=Engine.weekday(d),hol=S.holidays.find(h=>h.date===d);
+  return hol?`<span class="badge ph" title="${esc(hol.name)}">Public Holiday</span>`:(wd===0?'<span class="badge x2">× 2</span>':'');}
+function dayClass(d){const wd=Engine.weekday(d);return (S.holSet.has(d)?'ph ':'')+(wd===0?'sun ':'')+(wd===6?'sat':'');}
+function empOptions(sel){
+  const names=activeEmps(); const list=sel&&!names.includes(sel)?[sel,...names]:names;
+  return {list,html:list.map(n=>`<option value="${esc(n)}"${n===sel?' selected':''}>${esc(n)}</option>`).join('')};
+}
+
+/* ---------- CAPTURE (clock cards) ---------- */
+// Monday-Friday (not a public holiday) start as "Worked". Saturday, Sunday and public holidays start as "Not worked".
 function buildDraft(){
-  const n=S.selEmp; S.draft={};
-  const c=(S.pd.cards[n]||{}), g=(S.pd.glass[n]||{});
-  for(const d of S.days){
-    const cr=c[d], gr_=g[d];
-    S.draft[d]={type:cr?cr.dayType:'',start:cr?cr.start:'',end:cr?cr.end:'',glass:gr_&&gr_.qty?String(gr_.qty):''};
-  }
+  const n=S.selEmp; S.draft={}; const c=S.pd.cards[n]||{};
+  for(const d of S.days){const cr=c[d];
+    S.draft[d]=cr?{type:cr.dayType,start:cr.start,end:cr.end}:{type:isNormalWeekday(d)?'Worked':'',start:'',end:''};}
   S.snapshot=JSON.stringify(S.draft);S.dirty=false;
 }
+function typeChoices(d,cur){
+  const base=isNormalWeekday(d)?DAY_TYPES:['','Worked'];
+  return base.includes(cur)?base:[...base,cur];
+}
 function renderCapture(){
-  const names=activeEmps();
-  const sel=$('empSel');
-  // include the selected employee even if deactivated
-  const list=S.selEmp&&!names.includes(S.selEmp)?[S.selEmp,...names]:names;
-  sel.innerHTML=list.map(n=>`<option value="${esc(n)}"${n===S.selEmp?' selected':''}>${esc(n)}</option>`).join('');
-  if(!list.length){$('capBody').innerHTML='<tr><td colspan="7">No employees yet. Add them on the Employees tab.</td></tr>';$('capStrip').innerHTML='';$('capNotes').innerHTML='';return;}
-  if(!S.selEmp)S.selEmp=list[0];
+  const o=empOptions(S.selEmp); $('empSel').innerHTML=o.html;
+  if(!o.list.length){$('capBody').innerHTML='<tr><td colspan="6">No employees yet. Add them on the Employees tab.</td></tr>';$('capStrip').innerHTML='';$('capNotes').innerHTML='';return;}
+  if(!S.selEmp){S.selEmp=o.list[0];$('empSel').value=S.selEmp;}
   buildDraft();
-  const typeOpts=ty=>`<option value=""${!ty?' selected':''}>—</option>`+DAY_TYPES.map(x=>`<option${x===ty?' selected':''}>${x}</option>`).join('');
   $('capBody').innerHTML=S.days.map(d=>{
-    const wd=Engine.weekday(d), hol=S.holidays.find(h=>h.date===d);
-    const cls=(hol?'ph ':'')+(wd===0?'sun ':'')+(wd===6?'sat':'');
-    const badge=hol?`<span class="badge ph" title="${esc(hol.name)}">Public Holiday</span>`:(wd===0?'<span class="badge x2">× 2</span>':'');
     const r=S.draft[d];
-    return `<tr data-d="${d}" class="${cls}"><td style="white-space:nowrap">${dShort(d)}${badge}</td>
-      <td><select data-f="type">${typeOpts(r.type)}</select></td>
+    const opts=typeChoices(d,r.type).map(x=>`<option value="${esc(x)}"${x===r.type?' selected':''}>${x===''?'Not worked':esc(x)}</option>`).join('');
+    return `<tr data-d="${d}" class="${dayClass(d)}"><td style="white-space:nowrap">${dShort(d)}${dayBadge(d)}</td>
+      <td><select data-f="type">${opts}</select></td>
       <td><input class="t" type="text" inputmode="numeric" placeholder="07:00" data-f="start" value="${esc(r.start)}"></td>
       <td><input class="t" type="text" inputmode="numeric" placeholder="16:30" data-f="end" value="${esc(r.end)}"></td>
-      <td class="num" data-c="lunch"></td><td class="num" data-c="hrs"></td>
-      <td><input class="g" type="text" inputmode="decimal" placeholder="12.86+12.86" data-f="glass" value="${esc(r.glass)}"></td></tr>`;
+      <td class="num" data-c="lunch"></td><td class="num" data-c="hrs"></td></tr>`;
   }).join('');
   recalc();
 }
 function normTime(v){const m=Engine.parseTime(v);return m==null?v:Engine.fmtTime(m);}
 function recalc(){
   const n=S.selEmp; if(!n)return;
-  const cards={},glass={}; let glassBad=false;
+  const cards={};
   for(const d of S.days){
-    const r=S.draft[d], tr=document.querySelector(`#capBody tr[data-d="${d}"]`);
-    const isWorked=r.type==='Worked';
+    const r=S.draft[d], tr=document.querySelector(`#capBody tr[data-d="${d}"]`), isWorked=r.type==='Worked';
     if(r.type)cards[d]={dayType:r.type,start:r.start,end:r.end};
-    const q=Engine.parseQty(r.glass); if(!q.ok)glassBad=true; else if(q.value)glass[d]=q.value;
     if(tr){
-      const st=tr.querySelector('[data-f=start]'),en=tr.querySelector('[data-f=end]'),gl=tr.querySelector('[data-f=glass]');
-      st.disabled=en.disabled=!!r.type&&!isWorked;
+      const st=tr.querySelector('[data-f=start]'),en=tr.querySelector('[data-f=end]');
+      st.style.visibility=en.style.visibility=isWorked?'visible':'hidden';   // start/end only show on days worked
       const sh=Engine.shift(r.start,r.end);
       const badTimes=isWorked&&((r.start&&Engine.parseTime(r.start)==null)||(r.end&&Engine.parseTime(r.end)==null)||(r.start&&r.end&&!sh.valid));
       st.classList.toggle('bad',!!badTimes&&(Engine.parseTime(r.start)==null||!sh.valid));
       en.classList.toggle('bad',!!badTimes&&(Engine.parseTime(r.end)==null||!sh.valid));
-      gl.classList.toggle('bad',!q.ok);
       tr.querySelector('[data-c=lunch]').textContent=isWorked&&sh.valid?(sh.lunchMin?sh.lunchMin+' min':'none'):'';
       tr.querySelector('[data-c=hrs]').textContent=isWorked&&sh.valid?f2(sh.workedMin/60):'';
     }
   }
-  const res=Engine.calcEmployee({periodEnd:S.periodEnd,holidays:S.holSet,cards,glass});
-  $('capStrip').innerHTML=[['Normal hours',f2(res.normal),''],['Overtime hours × 1.5',f2(res.overtime),res.overtime>0?'hi':''],["Sun / Public Holiday × 2",f2(res.double),res.double>0?'hi':''],['Glass quantity',f2(res.glass),''],['Overtime starts at',f2(res.startPoint)+' h','']]
+  const res=Engine.calcEmployee({periodEnd:S.periodEnd,holidays:S.holSet,cards});
+  $('capStrip').innerHTML=[['Normal hours',f2(res.normal),''],['Overtime hours × 1.5',f2(res.overtime),res.overtime>0?'hi':''],['Sun / Public Holiday × 2',f2(res.double),res.double>0?'hi':''],['Overtime starts at',f2(res.startPoint)+' h','']]
     .map(([k,v,c])=>`<div class="stat ${c}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
-  const notes=[];
-  if(res.takeOffs.length)notes.push(`Overtime start point is lowered by ${f2(res.takeOffs.reduce((a,b)=>a+b.hours,0))} h: `+res.takeOffs.map(t=>dShort(t.date)+' ('+t.reason+', '+t.hours+' h)').join(', ')+'.');
-  const dirtyNow=JSON.stringify(S.draft)!==S.snapshot; S.dirty=dirtyNow; $('dirtyTag').textContent=dirtyNow?'● Unsaved changes':'';
-  let html=notes.length?`<div class="note ok">${esc(notes.join(' '))}</div>`:'';
-  if(res.missing.length)html+=`<div class="note">No entry yet for: ${res.missing.map(dShort).join(', ')}. Weekdays with nothing captured are not treated as absent. Choose a Type for them, or leave them if that is correct.</div>`;
-  if(glassBad)html+='<div class="note err">A glass box has something the app cannot read. Use numbers like 12.86 or 12.86+12.86.</div>';
+  S.dirty=JSON.stringify(S.draft)!==S.snapshot; $('dirtyTag').textContent=S.dirty?'● Unsaved changes':'';
+  let html='';
+  if(res.takeOffs.length)html+=`<div class="note ok">${esc('Overtime start point is lowered by '+f2(res.takeOffs.reduce((a,b)=>a+b.hours,0))+' h: '+res.takeOffs.map(t=>dShort(t.date)+' ('+t.reason+', '+t.hours+' h)').join(', ')+'.')}</div>`;
+  if(res.invalid.length)html+=`<div class="note">Start and end times are still needed (or need fixing) for: ${res.invalid.map(dShort).join(', ')}. If the person did not work that day, change the Type.</div>`;
   $('capNotes').innerHTML=html;
 }
 function validateDraft(){
@@ -591,24 +620,21 @@ function validateDraft(){
   for(const d of S.days){
     const r=S.draft[d];
     if(r.type==='Worked'){
-      if(!r.start||!r.end)p.push(dShort(d)+': enter both a start and an end time (or choose another Type).');
+      if(!r.start||!r.end)p.push(dShort(d)+': enter both a start and an end time, or change the Type if they did not work.');
       else if(!Engine.shift(r.start,r.end).valid)p.push(dShort(d)+': check the times — the end must be after the start, e.g. 07:00 and 16:30.');
     }
-    if(!Engine.parseQty(r.glass).ok)p.push(dShort(d)+': the glass quantity is not a number.');
   }
   return p;
 }
-async function saveEmployee(){
+async function saveCapture(){
   if(S.busy)return;
   const n=S.selEmp; const problems=validateDraft();
   if(problems.length){toast(problems[0],'err',6000);return;}
   S.busy=true;$('saveBtn').disabled=true;setStatus('Saving…');
-  const ex=S.pd.cards[n]||(S.pd.cards[n]={}), exG=S.pd.glass[n]||(S.pd.glass[n]={});
+  const ex=S.pd.cards[n]||(S.pd.cards[n]={});
   try{
     for(const d of S.days){
-      const r=S.draft[d], key=n+'|'+d;
-      // clock card row
-      const have=ex[d];
+      const r=S.draft[d], key=n+'|'+d, have=ex[d];
       if(r.type){
         const worked=r.type==='Worked', sh=worked?Engine.shift(r.start,r.end):null;
         const st=worked?normTime(r.start):'', en=worked?normTime(r.end):'';
@@ -616,20 +642,57 @@ async function saveEmployee(){
         if(!have){const c=await createItem(L.CARDS,fields);ex[d]={id:c.id,dayType:r.type,start:st,end:en};}
         else if(have.dayType!==r.type||have.start!==st||have.end!==en){await updateItem(L.CARDS,have.id,fields);Object.assign(have,{dayType:r.type,start:st,end:en});}
       }else if(have){await deleteItem(L.CARDS,have.id);delete ex[d];}
-      // glass row
-      const q=Engine.parseQty(r.glass), haveG=exG[d];
-      if(q.value>0){
-        const fields={Title:key,EmployeeName:n,WorkDate:dateField(d),Quantity:q.value};
-        if(!haveG){const c=await createItem(L.GLASS,fields);exG[d]={id:c.id,qty:q.value};}
-        else if(haveG.qty!==q.value){await updateItem(L.GLASS,haveG.id,fields);haveG.qty=q.value;}
-      }else if(haveG){await deleteItem(L.GLASS,haveG.id);delete exG[d];}
     }
     buildDraft();recalc();toast('Saved '+n,'ok');
-  }catch(e){
-    toast('Save failed: '+e.message,'err',8000);
-    try{await loadPeriod();}catch(_){}
-  }
+  }catch(e){toast('Save failed: '+e.message,'err',8000);try{await loadPeriod();}catch(_){}}
   S.busy=false;$('saveBtn').disabled=false;setStatus('');
+}
+
+/* ---------- GLASS ---------- */
+function buildGDraft(){
+  const n=S.gEmp; S.gdraft={}; const g=S.pd.glass[n]||{};
+  for(const d of S.days)S.gdraft[d]=g[d]&&g[d].qty?String(g[d].qty):'';
+  S.gsnap=JSON.stringify(S.gdraft);S.gdirty=false;
+}
+function renderGlass(){
+  const o=empOptions(S.gEmp); $('gEmpSel').innerHTML=o.html;
+  if(!o.list.length){$('gBody').innerHTML='<tr><td colspan="3">No employees yet. Add them on the Employees tab.</td></tr>';$('gStrip').innerHTML='';return;}
+  if(!S.gEmp){S.gEmp=o.list[0];$('gEmpSel').value=S.gEmp;}
+  buildGDraft();
+  $('gBody').innerHTML=S.days.map(d=>`<tr data-d="${d}" class="${dayClass(d)}"><td style="white-space:nowrap">${dShort(d)}${dayBadge(d)}</td>
+    <td><input class="g" type="text" inputmode="decimal" placeholder="e.g. 12.86+9.2" data-f="glass" value="${esc(S.gdraft[d])}"></td><td class="num" data-c="gtot"></td></tr>`).join('');
+  gRecalc();
+}
+function gRecalc(){
+  let total=0,bad=false;
+  for(const d of S.days){
+    const q=Engine.parseQty(S.gdraft[d]), tr=document.querySelector(`#gBody tr[data-d="${d}"]`);
+    if(!q.ok)bad=true; else total+=q.value;
+    if(tr){tr.querySelector('[data-f=glass]').classList.toggle('bad',!q.ok);tr.querySelector('[data-c=gtot]').textContent=q.ok&&!q.blank?f2(q.value):'';}
+  }
+  $('gStrip').innerHTML=`<div class="stat hi"><div class="k">Glass quantity for the period</div><div class="v">${f2(Math.round(total*100)/100)}</div></div>`;
+  $('gNotes').innerHTML=bad?'<div class="note err">A box has something the app cannot read. Use numbers like 12.86 or 12.86+9.2.</div>':'';
+  S.gdirty=JSON.stringify(S.gdraft)!==S.gsnap; $('gDirty').textContent=S.gdirty?'● Unsaved changes':'';
+}
+async function saveGlass(){
+  if(S.busy)return;
+  const n=S.gEmp;
+  const bad=S.days.find(d=>!Engine.parseQty(S.gdraft[d]).ok);
+  if(bad){toast(dShort(bad)+': the glass quantity is not a number.','err',6000);return;}
+  S.busy=true;$('gSave').disabled=true;setStatus('Saving…');
+  const exG=S.pd.glass[n]||(S.pd.glass[n]={});
+  try{
+    for(const d of S.days){
+      const q=Engine.parseQty(S.gdraft[d]), have=exG[d], key=n+'|'+d;
+      if(q.value>0){
+        const fields={Title:key,EmployeeName:n,WorkDate:dateField(d),Quantity:q.value};
+        if(!have){const c=await createItem(L.GLASS,fields);exG[d]={id:c.id,qty:q.value};}
+        else if(have.qty!==q.value){await updateItem(L.GLASS,have.id,fields);have.qty=q.value;}
+      }else if(have){await deleteItem(L.GLASS,have.id);delete exG[d];}
+    }
+    buildGDraft();gRecalc();toast('Glass saved for '+n,'ok');
+  }catch(e){toast('Save failed: '+e.message,'err',8000);try{await loadPeriod();}catch(_){}}
+  S.busy=false;$('gSave').disabled=false;setStatus('');
 }
 
 /* ---------- SUMMARY ---------- */
@@ -737,41 +800,45 @@ async function checkLists(){
 }
 
 /* ---------- wiring ---------- */
-document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.tab)));
+document.querySelectorAll('.tab').forEach(x=>x.addEventListener('click',()=>showTab(x.dataset.tab)));
 $('signinBtn').addEventListener('click',signIn);
 $('pPrev').addEventListener('click',()=>changePeriod(Engine.addDays(S.periodEnd,-14)));
 $('pNext').addEventListener('click',()=>changePeriod(Engine.addDays(S.periodEnd,14)));
 $('pLatest').addEventListener('click',()=>changePeriod(latestFinishedPeriodEnd()));
-$('saveBtn').addEventListener('click',saveEmployee);
+$('saveBtn').addEventListener('click',saveCapture);
+$('gSave').addEventListener('click',saveGlass);
 $('sumRefresh').addEventListener('click',async()=>{try{setStatus('Loading…');await loadBase();await loadPeriod();renderSummary();setStatus('');}catch(e){setStatus('');toast(e.message,'err',6000);}});
-$('empSel').addEventListener('change',e=>{
-  if(S.dirty&&!confirm('You have unsaved changes for '+S.selEmp+'. Leave without saving?')){e.target.value=S.selEmp;return;}
-  S.selEmp=e.target.value;renderCapture();
-});
-function stepEmp(dir){
-  const names=activeEmps(); if(!names.length)return; const i=names.indexOf(S.selEmp);
+$('empSel').addEventListener('change',e=>{if(!confirmLeave()){e.target.value=S.selEmp;return;}S.selEmp=e.target.value;renderCapture();});
+$('gEmpSel').addEventListener('change',e=>{if(!confirmLeave()){e.target.value=S.gEmp;return;}S.gEmp=e.target.value;renderGlass();});
+function stepEmp(kind,dir){
+  const names=activeEmps(); if(!names.length)return; const cur=kind==='g'?S.gEmp:S.selEmp, i=names.indexOf(cur);
   const next=names[(i+dir+names.length)%names.length];
-  if(S.dirty&&!confirm('You have unsaved changes for '+S.selEmp+'. Leave without saving?'))return;
-  S.selEmp=next;renderCapture();
+  if(!confirmLeave())return;
+  if(kind==='g'){S.gEmp=next;renderGlass();}else{S.selEmp=next;renderCapture();}
 }
-$('ePrev').addEventListener('click',()=>stepEmp(-1)); $('eNext').addEventListener('click',()=>stepEmp(1));
+$('ePrev').addEventListener('click',()=>stepEmp('c',-1)); $('eNext').addEventListener('click',()=>stepEmp('c',1));
+$('gPrev').addEventListener('click',()=>stepEmp('g',-1)); $('gNext').addEventListener('click',()=>stepEmp('g',1));
 $('capBody').addEventListener('input',e=>{
-  const f=e.target.dataset.f; if(!f)return; const d=e.target.closest('tr').dataset.d, r=S.draft[d];
-  if(f==='type'){r.type=e.target.value; if(r.type&&r.type!=='Worked'){r.start='';r.end='';const tr=e.target.closest('tr');tr.querySelector('[data-f=start]').value='';tr.querySelector('[data-f=end]').value='';}}
-  else{r[f]=e.target.value; if((f==='start'||f==='end')&&!r.type){r.type='Worked';e.target.closest('tr').querySelector('[data-f=type]').value='Worked';}}
+  const f=e.target.dataset.f; if(!f)return; const tr=e.target.closest('tr'), d=tr.dataset.d, r=S.draft[d];
+  if(f==='type'){
+    r.type=e.target.value;
+    if(r.type!=='Worked'){r.start='';r.end='';tr.querySelector('[data-f=start]').value='';tr.querySelector('[data-f=end]').value='';}
+  }else r[f]=e.target.value;
   recalc();
+  if(f==='type'&&r.type==='Worked'){const s=tr.querySelector('[data-f=start]');if(s)s.focus();}
 });
 $('capBody').addEventListener('focusout',e=>{
   const f=e.target.dataset&&e.target.dataset.f; if(f!=='start'&&f!=='end')return;
   const d=e.target.closest('tr').dataset.d, v=normTime(e.target.value.trim()); if(v!==e.target.value){e.target.value=v;S.draft[d][f]=v;recalc();}
 });
+$('gBody').addEventListener('input',e=>{if(e.target.dataset.f!=='glass')return;S.gdraft[e.target.closest('tr').dataset.d]=e.target.value;gRecalc();});
 $('addEmp').addEventListener('click',addEmployee);
 $('newEmp').addEventListener('keydown',e=>{if(e.key==='Enter')addEmployee();});
 $('empBody').addEventListener('click',e=>{const b=e.target.closest('[data-emp]');if(b)toggleEmployee(b.dataset.emp);});
 $('addHol').addEventListener('click',addHoliday);
 $('holBody').addEventListener('click',e=>{const b=e.target.closest('[data-hol]');if(b)removeHoliday(b.dataset.hol);});
 $('chkBtn').addEventListener('click',checkLists);
-window.addEventListener('beforeunload',e=>{if(S.dirty){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',e=>{if(isDirty()){e.preventDefault();e.returnValue='';}});
 initAuth();
 </script>
 </body>
