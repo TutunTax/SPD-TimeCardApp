@@ -74,7 +74,6 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
 #signin h1{font-size:22px;margin-bottom:8px} #signin p{color:var(--ink-light);margin-bottom:18px}
 .hidden{display:none!important}
 .dirtytag,#dirtyTag{font-size:13px;font-weight:600;color:var(--amber)}
-#gTable input.g{width:170px;text-align:right}
 @media(max-width:700px){#periodLabel{min-width:0;flex:1 0 100%;order:-1}.stat .v{font-size:18px}}
 </style>
 </head>
@@ -133,24 +132,22 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
   <!-- GLASS -->
   <section id="view-glass" class="hidden">
     <div class="card">
-      <div class="row" style="margin-bottom:12px">
-        <label class="l" for="gEmpSel">Employee</label>
-        <select id="gEmpSel"></select>
-        <button class="btn small" id="gPrev">◀ Previous</button>
-        <button class="btn small" id="gNext">Next ▶</button>
-        <span class="spacer"></span>
-        <span id="gDirty" class="dirtytag"></span>
-        <button class="btn primary" id="gSave">Save</button>
+      <h2>Add a glass slip</h2>
+      <div class="sub">One entry for each slip: who, the date on the slip, and the kg. Each slip is saved as soon as you press Add, and the app totals them for the pay period.</div>
+      <div class="row">
+        <label class="l" for="gEmpSel">Employee</label><select id="gEmpSel"></select>
+        <label class="l" for="gDate">Date</label><input type="date" id="gDate">
+        <label class="l" for="gKg">Kg</label><input type="text" id="gKg" inputmode="decimal" placeholder="e.g. 12.86" style="width:110px;text-align:right">
+        <button class="btn primary" id="gAdd">Add slip</button>
       </div>
-      <div class="sub">Type the glass quantity for each day. If there are several slips on a day, add them up with a plus, for example 12.86+9.2.</div>
-      <div class="tablewrap">
-        <table id="gTable">
-          <thead><tr><th>Day</th><th>Glass quantity</th><th class="num">Day total</th></tr></thead>
-          <tbody id="gBody"></tbody>
-        </table>
-      </div>
-      <div class="strip" id="gStrip"></div>
-      <div id="gNotes"></div>
+    </div>
+    <div class="card">
+      <h2>Totals for the period</h2>
+      <div class="tablewrap"><table><thead><tr><th>Employee</th><th class="num">Slips</th><th class="num">Total kg</th></tr></thead><tbody id="gTotBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="row" style="margin-bottom:8px"><h2>Slips captured</h2><span class="spacer"></span><label class="l" for="gFilter">Show</label><select id="gFilter"></select></div>
+      <div class="tablewrap"><table><thead><tr><th>Date</th><th>Employee</th><th class="num">Kg</th><th></th></tr></thead><tbody id="gBody"></tbody></table></div>
     </div>
   </section>
 
@@ -414,7 +411,7 @@ function todayISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMo
 function latestFinishedPeriodEnd(){let e=Engine.periodEndFor(todayISO());if(e>=todayISO())e=Engine.addDays(e,-14);return e;}
 
 const S={account:null,siteId:null,employees:[],holidays:[],holSet:new Set(),periodEnd:latestFinishedPeriodEnd(),days:[],
-  pd:null,tab:'capture',selEmp:null,draft:{},snapshot:'',dirty:false,gEmp:null,gdraft:{},gsnap:'',gdirty:false,busy:false};
+  pd:null,tab:'capture',selEmp:null,draft:{},snapshot:'',dirty:false,gEmp:null,gDate:null,gFilter:'',busy:false};
 let msalApp=null;
 
 /* ---------- messages ---------- */
@@ -521,7 +518,7 @@ async function loadPeriod(){
   for(const i of cards){const f=i.fields;const d=titleDate(f.Title)||readDate(f.WorkDate);const n=f.EmployeeName;if(!d||!n||d<start||d>end)continue;
     (pd.cards[n]=pd.cards[n]||{})[d]={id:i.id,dayType:f.DayType||'Worked',start:f.StartTime||'',end:f.EndTime||''};}
   for(const i of glass){const f=i.fields;const d=titleDate(f.Title)||readDate(f.WorkDate);const n=f.EmployeeName;if(!d||!n||d<start||d>end)continue;
-    (pd.glass[n]=pd.glass[n]||{})[d]={id:i.id,qty:Number(f.Quantity)||0};}
+    (pd.glass[n]=pd.glass[n]||[]).push({id:i.id,date:d,qty:Number(f.Quantity)||0});}
   S.pd=pd;
 }
 
@@ -549,7 +546,7 @@ function showTab(t,force){
 }
 
 /* ---------- shared ---------- */
-const isDirty=()=>S.dirty||S.gdirty;
+const isDirty=()=>S.dirty;
 const confirmLeave=()=>!isDirty()||confirm('You have unsaved changes. Leave without saving?');
 const isNormalWeekday=d=>{const w=Engine.weekday(d);return w>=1&&w<=5&&!S.holSet.has(d);};
 function dayBadge(d){const wd=Engine.weekday(d),hol=S.holidays.find(h=>h.date===d);
@@ -648,63 +645,66 @@ async function saveCapture(){
   S.busy=false;$('saveBtn').disabled=false;setStatus('');
 }
 
-/* ---------- GLASS ---------- */
-function buildGDraft(){
-  const n=S.gEmp; S.gdraft={}; const g=S.pd.glass[n]||{};
-  for(const d of S.days)S.gdraft[d]=g[d]&&g[d].qty?String(g[d].qty):'';
-  S.gsnap=JSON.stringify(S.gdraft);S.gdirty=false;
+/* ---------- GLASS (one record per slip) ---------- */
+function parseKg(v){const s=String(v==null?'':v).trim().replace(',','.');if(!/^\d+(\.\d+)?$/.test(s))return null;const n=Math.round(parseFloat(s)*100)/100;return n>0?n:null;}
+function glassRows(){
+  const out=[]; for(const [name,arr] of Object.entries(S.pd.glass)) for(const g of arr) out.push({id:g.id,date:g.date,qty:g.qty,name});
+  return out.sort((a,b)=>a.name.localeCompare(b.name)||a.date.localeCompare(b.date));
 }
 function renderGlass(){
   const o=empOptions(S.gEmp); $('gEmpSel').innerHTML=o.html;
-  if(!o.list.length){$('gBody').innerHTML='<tr><td colspan="3">No employees yet. Add them on the Employees tab.</td></tr>';$('gStrip').innerHTML='';return;}
-  if(!S.gEmp){S.gEmp=o.list[0];$('gEmpSel').value=S.gEmp;}
-  buildGDraft();
-  $('gBody').innerHTML=S.days.map(d=>`<tr data-d="${d}" class="${dayClass(d)}"><td style="white-space:nowrap">${dShort(d)}${dayBadge(d)}</td>
-    <td><input class="g" type="text" inputmode="decimal" placeholder="e.g. 12.86+9.2" data-f="glass" value="${esc(S.gdraft[d])}"></td><td class="num" data-c="gtot"></td></tr>`).join('');
-  gRecalc();
+  if(o.list.length&&!S.gEmp){S.gEmp=o.list[0];$('gEmpSel').value=S.gEmp;}
+  const di=$('gDate'); di.min=S.days[0]; di.max=S.days[13];
+  if(!S.gDate||S.gDate<S.days[0]||S.gDate>S.days[13])S.gDate=S.days[0];
+  di.value=S.gDate;
+  renderGlassLists();
 }
-function gRecalc(){
-  let total=0,bad=false;
-  for(const d of S.days){
-    const q=Engine.parseQty(S.gdraft[d]), tr=document.querySelector(`#gBody tr[data-d="${d}"]`);
-    if(!q.ok)bad=true; else total+=q.value;
-    if(tr){tr.querySelector('[data-f=glass]').classList.toggle('bad',!q.ok);tr.querySelector('[data-c=gtot]').textContent=q.ok&&!q.blank?f2(q.value):'';}
-  }
-  $('gStrip').innerHTML=`<div class="stat hi"><div class="k">Glass quantity for the period</div><div class="v">${f2(Math.round(total*100)/100)}</div></div>`;
-  $('gNotes').innerHTML=bad?'<div class="note err">A box has something the app cannot read. Use numbers like 12.86 or 12.86+9.2.</div>':'';
-  S.gdirty=JSON.stringify(S.gdraft)!==S.gsnap; $('gDirty').textContent=S.gdirty?'● Unsaved changes':'';
+function renderGlassLists(){
+  const rows=glassRows(), names=[...new Set(rows.map(r=>r.name))];
+  // totals by employee
+  let all=0;
+  $('gTotBody').innerHTML=names.map(n=>{const mine=rows.filter(r=>r.name===n),kg=Math.round(mine.reduce((a,b)=>a+b.qty,0)*100)/100;all+=kg;
+    return `<tr><td><b>${esc(n)}</b></td><td class="num">${mine.length}</td><td class="num"><b>${f2(kg)}</b></td></tr>`;}).join('')
+    +(names.length?`<tr><td><b>All employees</b></td><td class="num">${rows.length}</td><td class="num"><b>${f2(Math.round(all*100)/100)}</b></td></tr>`:'<tr><td colspan="3">No slips captured for this period yet.</td></tr>');
+  // filter + list
+  const cur=names.includes(S.gFilter)?S.gFilter:''; S.gFilter=cur;
+  $('gFilter').innerHTML='<option value="">All employees</option>'+names.map(n=>`<option value="${esc(n)}"${n===cur?' selected':''}>${esc(n)}</option>`).join('');
+  const shown=cur?rows.filter(r=>r.name===cur):rows;
+  $('gBody').innerHTML=shown.map(r=>`<tr><td>${dShort(r.date)}</td><td>${esc(r.name)}</td><td class="num">${f2(r.qty)}</td><td style="text-align:right"><button class="btn small danger" data-id="${esc(r.id)}" data-name="${esc(r.name)}">Delete</button></td></tr>`).join('')
+    ||'<tr><td colspan="4">Nothing to show.</td></tr>';
 }
-async function saveGlass(){
+async function addSlip(){
   if(S.busy)return;
-  const n=S.gEmp;
-  const bad=S.days.find(d=>!Engine.parseQty(S.gdraft[d]).ok);
-  if(bad){toast(dShort(bad)+': the glass quantity is not a number.','err',6000);return;}
-  S.busy=true;$('gSave').disabled=true;setStatus('Saving…');
-  const exG=S.pd.glass[n]||(S.pd.glass[n]={});
+  const name=$('gEmpSel').value, date=$('gDate').value, kg=parseKg($('gKg').value);
+  if(!name)return toast('Choose an employee.','err');
+  if(!date||date<S.days[0]||date>S.days[13])return toast('The date must fall inside this pay period ('+dShort(S.days[0])+' to '+dShort(S.days[13])+').','err',6000);
+  if(kg==null)return toast('Type the kg as a number, for example 12.86.','err');
+  const dup=(S.pd.glass[name]||[]).some(g=>g.date===date&&g.qty===kg);
+  if(dup&&!confirm(name+' already has a slip of '+f2(kg)+' kg on '+dShort(date)+'. Add it again?'))return;
+  S.busy=true;$('gAdd').disabled=true;
   try{
-    for(const d of S.days){
-      const q=Engine.parseQty(S.gdraft[d]), have=exG[d], key=n+'|'+d;
-      if(q.value>0){
-        const fields={Title:key,EmployeeName:n,WorkDate:dateField(d),Quantity:q.value};
-        if(!have){const c=await createItem(L.GLASS,fields);exG[d]={id:c.id,qty:q.value};}
-        else if(have.qty!==q.value){await updateItem(L.GLASS,have.id,fields);have.qty=q.value;}
-      }else if(have){await deleteItem(L.GLASS,have.id);delete exG[d];}
-    }
-    buildGDraft();gRecalc();toast('Glass saved for '+n,'ok');
-  }catch(e){toast('Save failed: '+e.message,'err',8000);try{await loadPeriod();}catch(_){}}
-  S.busy=false;$('gSave').disabled=false;setStatus('');
+    const c=await createItem(L.GLASS,{Title:name+'|'+date,EmployeeName:name,WorkDate:dateField(date),Quantity:kg});
+    (S.pd.glass[name]=S.pd.glass[name]||[]).push({id:c.id,date,qty:kg});
+    S.gEmp=name;S.gDate=date;$('gKg').value='';renderGlassLists();toast('Added '+f2(kg)+' kg for '+name,'ok',1800);
+  }catch(e){toast('Could not save: '+e.message,'err',8000);}
+  S.busy=false;$('gAdd').disabled=false;$('gKg').focus();
+}
+async function deleteSlip(id,name){
+  const g=(S.pd.glass[name]||[]).find(x=>x.id===id); if(!g||!confirm('Delete the '+f2(g.qty)+' kg slip for '+name+' on '+dShort(g.date)+'?'))return;
+  try{await deleteItem(L.GLASS,id);S.pd.glass[name]=S.pd.glass[name].filter(x=>x.id!==id);renderGlassLists();toast('Deleted','ok',1500);}
+  catch(e){toast('Could not delete: '+e.message,'err',6000);}
 }
 
 /* ---------- SUMMARY ---------- */
 function calcFromCache(n){
   const cards={},glass={};
   for(const [d,c] of Object.entries(S.pd.cards[n]||{}))cards[d]={dayType:c.dayType,start:c.start,end:c.end};
-  for(const [d,g] of Object.entries(S.pd.glass[n]||{}))glass[d]=g.qty;
+  for(const g of (S.pd.glass[n]||[]))glass[g.date]=(glass[g.date]||0)+g.qty;
   return Engine.calcEmployee({periodEnd:S.periodEnd,holidays:S.holSet,cards,glass});
 }
 function renderSummary(){
   $('sumSub').textContent='Type these into SimplePay for the pay period ending '+dLong(S.periodEnd)+'. Rates and money are worked out by SimplePay.';
-  const names=S.employees.filter(e=>e.active||(S.pd.cards[e.name]&&Object.keys(S.pd.cards[e.name]).length)||(S.pd.glass[e.name]&&Object.keys(S.pd.glass[e.name]).length)).map(e=>e.name);
+  const names=S.employees.filter(e=>e.active||(S.pd.cards[e.name]&&Object.keys(S.pd.cards[e.name]).length)||(S.pd.glass[e.name]&&S.pd.glass[e.name].length)).map(e=>e.name);
   $('sumBody').innerHTML=names.map(n=>{
     const r=calcFromCache(n), has=Object.keys(S.pd.cards[n]||{}).length>0;
     const warns=[]; if(!has)warns.push('Nothing captured'); else if(r.missing.length)warns.push(r.missing.length+' weekday'+(r.missing.length>1?'s':'')+' without entry'); if(r.invalid.length)warns.push('Times need fixing');
@@ -806,10 +806,14 @@ $('pPrev').addEventListener('click',()=>changePeriod(Engine.addDays(S.periodEnd,
 $('pNext').addEventListener('click',()=>changePeriod(Engine.addDays(S.periodEnd,14)));
 $('pLatest').addEventListener('click',()=>changePeriod(latestFinishedPeriodEnd()));
 $('saveBtn').addEventListener('click',saveCapture);
-$('gSave').addEventListener('click',saveGlass);
+$('gAdd').addEventListener('click',addSlip);
+$('gKg').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addSlip();}});
+$('gDate').addEventListener('change',e=>{S.gDate=e.target.value;});
+$('gEmpSel').addEventListener('change',e=>{S.gEmp=e.target.value;});
+$('gFilter').addEventListener('change',e=>{S.gFilter=e.target.value;renderGlassLists();});
+$('gBody').addEventListener('click',e=>{const b=e.target.closest('[data-id]');if(b)deleteSlip(b.dataset.id,b.dataset.name);});
 $('sumRefresh').addEventListener('click',async()=>{try{setStatus('Loading…');await loadBase();await loadPeriod();renderSummary();setStatus('');}catch(e){setStatus('');toast(e.message,'err',6000);}});
 $('empSel').addEventListener('change',e=>{if(!confirmLeave()){e.target.value=S.selEmp;return;}S.selEmp=e.target.value;renderCapture();});
-$('gEmpSel').addEventListener('change',e=>{if(!confirmLeave()){e.target.value=S.gEmp;return;}S.gEmp=e.target.value;renderGlass();});
 function stepEmp(kind,dir){
   const names=activeEmps(); if(!names.length)return; const cur=kind==='g'?S.gEmp:S.selEmp, i=names.indexOf(cur);
   const next=names[(i+dir+names.length)%names.length];
@@ -817,7 +821,6 @@ function stepEmp(kind,dir){
   if(kind==='g'){S.gEmp=next;renderGlass();}else{S.selEmp=next;renderCapture();}
 }
 $('ePrev').addEventListener('click',()=>stepEmp('c',-1)); $('eNext').addEventListener('click',()=>stepEmp('c',1));
-$('gPrev').addEventListener('click',()=>stepEmp('g',-1)); $('gNext').addEventListener('click',()=>stepEmp('g',1));
 $('capBody').addEventListener('input',e=>{
   const f=e.target.dataset.f; if(!f)return; const tr=e.target.closest('tr'), d=tr.dataset.d, r=S.draft[d];
   if(f==='type'){
@@ -831,7 +834,6 @@ $('capBody').addEventListener('focusout',e=>{
   const f=e.target.dataset&&e.target.dataset.f; if(f!=='start'&&f!=='end')return;
   const d=e.target.closest('tr').dataset.d, v=normTime(e.target.value.trim()); if(v!==e.target.value){e.target.value=v;S.draft[d][f]=v;recalc();}
 });
-$('gBody').addEventListener('input',e=>{if(e.target.dataset.f!=='glass')return;S.gdraft[e.target.closest('tr').dataset.d]=e.target.value;gRecalc();});
 $('addEmp').addEventListener('click',addEmployee);
 $('newEmp').addEventListener('keydown',e=>{if(e.key==='Enter')addEmployee();});
 $('empBody').addEventListener('click',e=>{const b=e.target.closest('[data-emp]');if(b)toggleEmployee(b.dataset.emp);});
