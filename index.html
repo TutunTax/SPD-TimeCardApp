@@ -80,11 +80,20 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
 .rblock tr.tot td{font-weight:700;border-top:2px solid var(--ink);background:#f3f4f6}
 .rblock td.dim{color:var(--ink-light)}
 .rblock tr.sun td{background:#fff7ed}.rblock tr.ph td{background:#eeeeee}
+@media print{
+  @page{size:A4;margin:12mm}
+  body{background:#fff}
+  #topbar,#tabs,#periodbar,#rControls,#banner,#toast,#signin,.tab{display:none!important}
+  main{max-width:none;padding:0}
+  .card{box-shadow:none;border:none;padding:0 0 6px;margin-bottom:8px}
+  .rblock{break-inside:avoid;page-break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
 <div id="topbar">
-  <div class="brand"><img src="icon-192.png" alt="" width="30" height="30" style="border-radius:6px" onerror="this.style.display='none'"> SPD-TimeCardApp</div>
+  <div class="brand"><img src="icon-192.png" alt="" width="30" height="30" style="border-radius:6px" onerror="this.style.display='none'"> SPD-TimeCardApp <span id="appVer" style="font-size:12px;font-weight:600;opacity:.75;margin-left:4px"></span></div>
   <div class="row"><span id="status"></span><span id="authPill" class="auth-pill">⚪ Sign in</span></div>
 </div>
 <div id="tabs" class="hidden">
@@ -181,10 +190,12 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
 
   <!-- REPORTS -->
   <section id="view-reports" class="hidden">
-    <div class="card">
+    <div class="card" id="rControls">
       <div class="row">
         <button class="btn small rmode active" data-mode="fortnight">Fortnight – all employees</button>
         <button class="btn small rmode" data-mode="person">One employee – several fortnights</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="rPdf">Save as PDF</button>
       </div>
       <div class="row hidden" id="rPersonBar" style="margin-top:12px">
         <label class="l" for="rEmp">Employee</label><select id="rEmp"></select>
@@ -422,8 +433,10 @@ const L={EMP:'Tutin_Time_Employees',HOL:'Tutin_Time_PublicHolidays',CARDS:'Tutin
 const GRAPH='https://graph.microsoft.com/v1.0';
 /* ============================================================================ */
 
+const APP_VERSION='5';   // change this number each time a new version is released
 const DAY_TYPES=Engine.DAY_TYPES;
 const $=id=>document.getElementById(id);
+$('appVer').textContent='v'+APP_VERSION;
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -778,6 +791,18 @@ async function runPersonReport(){
   }catch(e){toast('Could not load the report: '+e.message,'err',8000);}
   $('rRun').disabled=false; setStatus('');
 }
+
+function reportTitle(){
+  if(S.rMode==='person'){const n=$('rEmp').value;return 'SPD-TimeCardApp Report - '+n;}
+  return 'SPD-TimeCardApp Report - fortnight ending '+S.periodEnd;
+}
+function saveReportPdf(){
+  if(!$('rOut').querySelector('.rblock'))return toast(S.rMode==='person'?'Run the report first, then save it as PDF.':'There is nothing to print yet.','err');
+  const old=document.title; document.title=reportTitle()+' (v'+APP_VERSION+')';
+  const restore=()=>{document.title=old;window.removeEventListener('afterprint',restore);};
+  window.addEventListener('afterprint',restore);
+  window.print();
+}
 function renderReports(){
   const person=S.rMode==='person';
   document.querySelectorAll('.rmode').forEach(b=>b.classList.toggle('active',b.dataset.mode===S.rMode));
@@ -934,6 +959,7 @@ $('holBody').addEventListener('click',e=>{const b=e.target.closest('[data-hol]')
 $('chkBtn').addEventListener('click',checkLists);
 document.querySelectorAll('.rmode').forEach(b=>b.addEventListener('click',()=>{S.rMode=b.dataset.mode;$('rOut').innerHTML='';renderReports();}));
 $('rRun').addEventListener('click',runPersonReport);
+$('rPdf').addEventListener('click',saveReportPdf);
 window.addEventListener('beforeunload',e=>{if(isDirty()){e.preventDefault();e.returnValue='';}});
 initAuth();
 </script>
