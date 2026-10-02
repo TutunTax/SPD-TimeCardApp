@@ -75,6 +75,11 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
 .hidden{display:none!important}
 .dirtytag,#dirtyTag{font-size:13px;font-weight:600;color:var(--amber)}
 @media(max-width:700px){#periodLabel{min-width:0;flex:1 0 100%;order:-1}.stat .v{font-size:18px}}
+.rmode.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.rblock{margin-bottom:16px}.rblock h2{font-size:16px}
+.rblock tr.tot td{font-weight:700;border-top:2px solid var(--ink);background:#f3f4f6}
+.rblock td.dim{color:var(--ink-light)}
+.rblock tr.sun td{background:#fff7ed}.rblock tr.ph td{background:#eeeeee}
 </style>
 </head>
 <body>
@@ -86,6 +91,7 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
   <div class="tab active" data-tab="capture">Capture</div>
   <div class="tab" data-tab="glass">Glass</div>
   <div class="tab" data-tab="summary">Summary for SimplePay</div>
+  <div class="tab" data-tab="reports">Reports</div>
   <div class="tab" data-tab="employees">Employees</div>
   <div class="tab" data-tab="settings">Settings</div>
 </div>
@@ -171,6 +177,23 @@ input.bad{border-color:#dc2626;background:var(--red-dim)}
       <div class="row" style="margin-bottom:12px"><input type="text" id="newEmp" placeholder="New employee name" style="width:260px"><button class="btn primary" id="addEmp">Add employee</button></div>
       <div class="tablewrap"><table><thead><tr><th>Name</th><th>Status</th><th></th></tr></thead><tbody id="empBody"></tbody></table></div>
     </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="view-reports" class="hidden">
+    <div class="card">
+      <div class="row">
+        <button class="btn small rmode active" data-mode="fortnight">Fortnight – all employees</button>
+        <button class="btn small rmode" data-mode="person">One employee – several fortnights</button>
+      </div>
+      <div class="row hidden" id="rPersonBar" style="margin-top:12px">
+        <label class="l" for="rEmp">Employee</label><select id="rEmp"></select>
+        <label class="l" for="rFrom">From fortnight</label><select id="rFrom"></select>
+        <label class="l" for="rTo">To fortnight</label><select id="rTo"></select>
+        <button class="btn primary" id="rRun">Run report</button>
+      </div>
+    </div>
+    <div id="rOut"></div>
   </section>
 
   <!-- SETTINGS -->
@@ -411,7 +434,7 @@ function todayISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMo
 function latestFinishedPeriodEnd(){let e=Engine.periodEndFor(todayISO());if(e>=todayISO())e=Engine.addDays(e,-14);return e;}
 
 const S={account:null,siteId:null,employees:[],holidays:[],holSet:new Set(),periodEnd:latestFinishedPeriodEnd(),days:[],
-  pd:null,tab:'capture',selEmp:null,draft:{},snapshot:'',dirty:false,gEmp:null,gDate:null,gFilter:'',busy:false};
+  pd:null,tab:'capture',selEmp:null,draft:{},snapshot:'',dirty:false,gEmp:null,gDate:null,gFilter:'',rMode:'fortnight',busy:false};
 let msalApp=null;
 
 /* ---------- messages ---------- */
@@ -432,7 +455,7 @@ async function initAuth(){
 }
 function showSignedOut(){
   $('signin').classList.remove('hidden');$('tabs').classList.add('hidden');$('periodbar').classList.add('hidden');
-  ['capture','glass','summary','employees','settings'].forEach(v=>$('view-'+v).classList.add('hidden'));
+  ['capture','glass','summary','reports','employees','settings'].forEach(v=>$('view-'+v).classList.add('hidden'));
   $('authPill').className='auth-pill';$('authPill').textContent='⚪ Sign in';$('authPill').onclick=signIn;
 }
 async function signIn(){try{await msalApp.loginRedirect({scopes:SCOPES});}catch(e){banner('Sign-in failed: '+e.message);}}
@@ -535,12 +558,13 @@ function showTab(t,force){
   if(!force&&t!==S.tab&&!confirmLeave())return;
   S.tab=t;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
-  ['capture','glass','summary','employees','settings'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==t));
-  $('periodbar').classList.toggle('hidden',!(t==='capture'||t==='glass'||t==='summary'));
+  ['capture','glass','summary','reports','employees','settings'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==t));
+  $('periodbar').classList.toggle('hidden',!(t==='capture'||t==='glass'||t==='summary'||(t==='reports'&&S.rMode==='fortnight')));
   if(S.days.length)renderPeriod();
   if(t==='capture')renderCapture();
   if(t==='glass')renderGlass();
   if(t==='summary')renderSummary();
+  if(t==='reports')renderReports();
   if(t==='employees')renderEmployees();
   if(t==='settings')renderHolidays();
 }
@@ -695,6 +719,74 @@ async function deleteSlip(id,name){
   catch(e){toast('Could not delete: '+e.message,'err',6000);}
 }
 
+/* ---------- REPORTS ---------- */
+// One block: a person's 14 days with Time (hours) and Glass kg side by side.
+function reportBlock(name,days,cards,glassArr,title){
+  const gBy={}; for(const g of glassArr)gBy[g.date]=(gBy[g.date]||0)+g.qty;
+  let hrs=0,kg=0;
+  const rows=days.map(d=>{
+    const c=cards[d], q=Math.round((gBy[d]||0)*100)/100; kg+=q;
+    let time='',dim=false;
+    if(c&&c.dayType==='Worked'){const sh=Engine.shift(c.start,c.end);if(sh.valid){const h=sh.workedMin/60;hrs+=h;time=f2(h);}else{time='check times';dim=true;}}
+    else if(c){time=c.dayType;dim=true;}
+    const wd=Engine.weekday(d), hol=S.holSet.has(d);
+    return `<tr class="${hol?'ph':(wd===0?'sun':'')}"><td style="white-space:nowrap">${dShort(d)}${hol?' <span class="badge ph">PH</span>':''}</td><td class="num${dim?' dim':''}">${esc(time)}</td><td class="num">${q?f2(q):''}</td></tr>`;
+  }).join('');
+  hrs=Math.round(hrs*100)/100; kg=Math.round(kg*100)/100;
+  return {hrs,kg,html:`<div class="card rblock"><h2>${esc(title)}</h2><div class="tablewrap"><table><thead><tr><th>Day</th><th class="num">Time (hours)</th><th class="num">Glass (kg)</th></tr></thead><tbody>${rows}<tr class="tot"><td>Total</td><td class="num">${f2(hrs)}</td><td class="num">${f2(kg)}</td></tr></tbody></table></div></div>`};
+}
+// Report 1: the fortnight chosen in the bar at the top, every employee
+function renderReportFortnight(){
+  const names=S.employees.filter(e=>e.active||(S.pd.cards[e.name]&&Object.keys(S.pd.cards[e.name]).length)||(S.pd.glass[e.name]&&S.pd.glass[e.name].length)).map(e=>e.name);
+  if(!names.length){$('rOut').innerHTML='<div class="card">No employees yet.</div>';return;}
+  let H=0,K=0, out=names.map(n=>{const b=reportBlock(n,S.days,S.pd.cards[n]||{},S.pd.glass[n]||[],n);H+=b.hrs;K+=b.kg;return b.html;}).join('');
+  $('rOut').innerHTML=`<div class="card"><h2>Time and glass per day — ${dLong(S.days[0])} to ${dLong(S.days[13])}</h2><div class="sub">All employees: ${f2(Math.round(H*100)/100)} hours, ${f2(Math.round(K*100)/100)} kg glass.</div></div>`+out;
+}
+// Report 2: one employee over a run of fortnights
+function fortnightOptions(){
+  const latest=latestFinishedPeriodEnd(), out=[];
+  for(let i=0;i<60;i++){const e=Engine.addDays(latest,-14*i);out.push({end:e,label:dShort(Engine.periodStartFor(e))+' – '+dLong(e)});}
+  return out;
+}
+function setupPersonBar(){
+  const emps=S.employees.map(e=>e.name), keep=$('rEmp').value;
+  $('rEmp').innerHTML=emps.map(n=>`<option value="${esc(n)}"${n===(keep||S.selEmp)?' selected':''}>${esc(n)}${S.employees.find(e=>e.name===n).active?'':' (inactive)'}</option>`).join('');
+  if(!$('rFrom').options.length){
+    const o=fortnightOptions(), h=o.map(x=>`<option value="${x.end}">${x.label}</option>`).join('');
+    $('rFrom').innerHTML=h; $('rTo').innerHTML=h;
+    $('rTo').selectedIndex=0; $('rFrom').selectedIndex=Math.min(5,o.length-1);   // default: the last 6 fortnights
+  }
+}
+async function runPersonReport(){
+  const name=$('rEmp').value; if(!name)return toast('Choose an employee.','err');
+  let a=$('rFrom').value, b=$('rTo').value; if(a>b)[a,b]=[b,a];
+  const first=Engine.periodStartFor(a);
+  $('rRun').disabled=true; setStatus('Loading…');
+  try{
+    const lo=Engine.addDays(first,-1), hi=Engine.addDays(b,1);
+    const flt=`fields/WorkDate ge '${lo}T00:00:00Z' and fields/WorkDate le '${hi}T23:59:59Z'`;
+    const [cardsRaw,glassRaw]=await Promise.all([getAllItems(L.CARDS,flt),getAllItems(L.GLASS,flt)]);
+    const cards={},glass=[];
+    for(const i of cardsRaw){const f=i.fields;if(f.EmployeeName!==name)continue;const d=titleDate(f.Title)||readDate(f.WorkDate);if(!d)continue;cards[d]={dayType:f.DayType||'Worked',start:f.StartTime||'',end:f.EndTime||''};}
+    for(const i of glassRaw){const f=i.fields;if(f.EmployeeName!==name)continue;const d=titleDate(f.Title)||readDate(f.WorkDate);if(!d)continue;glass.push({date:d,qty:Number(f.Quantity)||0});}
+    let H=0,K=0,n=0,html='';
+    for(let end=a;end<=b;end=Engine.addDays(end,14)){
+      const days=Engine.periodDays(end), blk=reportBlock(name,days,cards,glass.filter(g=>g.date>=days[0]&&g.date<=days[13]),dShort(days[0])+' – '+dLong(end));
+      H+=blk.hrs;K+=blk.kg;n++;html+=blk.html;
+    }
+    $('rOut').innerHTML=`<div class="card"><h2>${esc(name)} — ${n} fortnight${n>1?'s':''}</h2><div class="sub">${dLong(Engine.periodStartFor(a))} to ${dLong(b)}. Total: ${f2(Math.round(H*100)/100)} hours, ${f2(Math.round(K*100)/100)} kg glass.</div></div>`+html;
+  }catch(e){toast('Could not load the report: '+e.message,'err',8000);}
+  $('rRun').disabled=false; setStatus('');
+}
+function renderReports(){
+  const person=S.rMode==='person';
+  document.querySelectorAll('.rmode').forEach(b=>b.classList.toggle('active',b.dataset.mode===S.rMode));
+  $('rPersonBar').classList.toggle('hidden',!person);
+  $('periodbar').classList.toggle('hidden',person);
+  if(person){setupPersonBar();if(!$('rOut').innerHTML)$('rOut').innerHTML='<div class="card">Choose an employee and the fortnights, then press Run report.</div>';}
+  else renderReportFortnight();
+}
+
 /* ---------- SUMMARY ---------- */
 function calcFromCache(n){
   const cards={},glass={};
@@ -840,6 +932,8 @@ $('empBody').addEventListener('click',e=>{const b=e.target.closest('[data-emp]')
 $('addHol').addEventListener('click',addHoliday);
 $('holBody').addEventListener('click',e=>{const b=e.target.closest('[data-hol]');if(b)removeHoliday(b.dataset.hol);});
 $('chkBtn').addEventListener('click',checkLists);
+document.querySelectorAll('.rmode').forEach(b=>b.addEventListener('click',()=>{S.rMode=b.dataset.mode;$('rOut').innerHTML='';renderReports();}));
+$('rRun').addEventListener('click',runPersonReport);
 window.addEventListener('beforeunload',e=>{if(isDirty()){e.preventDefault();e.returnValue='';}});
 initAuth();
 </script>
