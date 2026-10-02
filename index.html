@@ -433,7 +433,7 @@ const L={EMP:'Tutin_Time_Employees',HOL:'Tutin_Time_PublicHolidays',CARDS:'Tutin
 const GRAPH='https://graph.microsoft.com/v1.0';
 /* ============================================================================ */
 
-const APP_VERSION='5';   // change this number each time a new version is released
+const APP_VERSION='6';   // change this number each time a new version is released
 const DAY_TYPES=Engine.DAY_TYPES;
 const $=id=>document.getElementById(id);
 $('appVer').textContent='v'+APP_VERSION;
@@ -739,14 +739,22 @@ function reportBlock(name,days,cards,glassArr,title){
   let hrs=0,kg=0;
   const rows=days.map(d=>{
     const c=cards[d], q=Math.round((gBy[d]||0)*100)/100; kg+=q;
-    let time='',dim=false;
-    if(c&&c.dayType==='Worked'){const sh=Engine.shift(c.start,c.end);if(sh.valid){const h=sh.workedMin/60;hrs+=h;time=f2(h);}else{time='check times';dim=true;}}
-    else if(c){time=c.dayType;dim=true;}
     const wd=Engine.weekday(d), hol=S.holSet.has(d);
-    return `<tr class="${hol?'ph':(wd===0?'sun':'')}"><td style="white-space:nowrap">${dShort(d)}${hol?' <span class="badge ph">PH</span>':''}</td><td class="num${dim?' dim':''}">${esc(time)}</td><td class="num">${q?f2(q):''}</td></tr>`;
+    let type='',tin='',tout='',lunch='',time='';
+    if(!c){type=(wd>=1&&wd<=5&&!hol)?'Not captured':'Not worked';}
+    else{
+      type=c.dayType;
+      if(c.dayType==='Worked'){
+        tin=c.start;tout=c.end;
+        const sh=Engine.shift(c.start,c.end);
+        if(sh.valid){const h=sh.workedMin/60;hrs+=h;time=f2(h);lunch=sh.lunchMin?sh.lunchMin+' min':'none';}else time='check times';
+      }
+    }
+    const dim=(!c||c.dayType!=='Worked')?' dim':'';
+    return `<tr class="${hol?'ph':(wd===0?'sun':'')}"><td style="white-space:nowrap">${dShort(d)}${hol?' <span class="badge ph">PH</span>':''}</td><td class="${dim.trim()}">${esc(type)}</td><td class="num">${esc(tin)}</td><td class="num">${esc(tout)}</td><td class="num">${lunch}</td><td class="num">${time}</td><td class="num">${q?f2(q):''}</td></tr>`;
   }).join('');
   hrs=Math.round(hrs*100)/100; kg=Math.round(kg*100)/100;
-  return {hrs,kg,html:`<div class="card rblock"><h2>${esc(title)}</h2><div class="tablewrap"><table><thead><tr><th>Day</th><th class="num">Time (hours)</th><th class="num">Glass (kg)</th></tr></thead><tbody>${rows}<tr class="tot"><td>Total</td><td class="num">${f2(hrs)}</td><td class="num">${f2(kg)}</td></tr></tbody></table></div></div>`};
+  return {hrs,kg,html:`<div class="card rblock"><h2>${esc(title)}</h2><div class="tablewrap"><table><thead><tr><th>Day</th><th>Type</th><th class="num">Time in</th><th class="num">Time out</th><th class="num">Lunch</th><th class="num">Hours</th><th class="num">Glass (kg)</th></tr></thead><tbody>${rows}<tr class="tot"><td>Total</td><td colspan="4"></td><td class="num">${f2(hrs)}</td><td class="num">${f2(kg)}</td></tr></tbody></table></div></div>`};
 }
 // Report 1: the fortnight chosen in the bar at the top, every employee
 function renderReportFortnight(){
